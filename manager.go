@@ -143,7 +143,14 @@ func (m *walletManager) DebitFundsInTx(ctx context.Context, tx gdb.TX, req *Fund
 }
 
 // ProcessFundOperationInTx 基于资金类型的通用操作方法
-func (m *walletManager) ProcessFundOperationInTx(ctx context.Context, tx gdb.TX, req *FundOperationRequest) (*FundOperationResult, error) {
+func (m *walletManager) ProcessFundOperationInTx(ctx context.Context, tx gdb.TX, req *constants.FundOperationRequest) (*FundOperationResult, error) {
+	// 转换为旧的请求格式进行处理
+	oldReq := convertToOldFundOperationRequest(req)
+	return m.processFundOperationInTxInternal(ctx, tx, oldReq)
+}
+
+// processFundOperationInTxInternal 内部处理方法，使用旧的请求格式
+func (m *walletManager) processFundOperationInTxInternal(ctx context.Context, tx gdb.TX, req *FundOperationRequest) (*FundOperationResult, error) {
 	// 验证资金类型
 	if !constants.IsValidFundType(req.FundType) {
 		return nil, gerror.Newf("无效的资金类型: %s", req.FundType)
@@ -307,6 +314,35 @@ func (m *walletManager) ProcessTransferInTx(ctx context.Context, tx gdb.TX, req 
 // CreateTransactionWithBuilder 使用 TransactionBuilder 创建交易
 func (m *walletManager) CreateTransactionWithBuilder(ctx context.Context, txReq *constants.TransactionRequest) (int64, error) {
 	return m.transactionManager.CreateTransaction(ctx, txReq)
+}
+
+// ProcessFundOperationWithBuilder 使用 FundOperationBuilder 创建资金操作
+func (m *walletManager) ProcessFundOperationWithBuilder(ctx context.Context, tx gdb.TX, builder *constants.FundOperationBuilder) (*FundOperationResult, error) {
+	// 构建请求
+	req, err := builder.Build()
+	if err != nil {
+		return nil, gerror.Wrap(err, "构建资金操作请求失败")
+	}
+	
+	// 执行操作
+	return m.ProcessFundOperationInTx(ctx, tx, req)
+}
+
+// convertToOldFundOperationRequest 转换新的请求格式为旧的请求格式
+func convertToOldFundOperationRequest(req *constants.FundOperationRequest) *FundOperationRequest {
+	return &FundOperationRequest{
+		UserID:           req.UserID,
+		TokenSymbol:      req.TokenSymbol,
+		Amount:           req.Amount,
+		BusinessID:       req.BusinessID,
+		FundType:         req.FundType,
+		Description:      req.Description,
+		Metadata:         req.Metadata,
+		RelatedID:        req.RelatedID,
+		RequestSource:    req.RequestSource,
+		RequestIP:        req.RequestIP,
+		RequestUserAgent: req.RequestUserAgent,
+	}
 }
 
 // validateTransferRequest 验证转账请求参数

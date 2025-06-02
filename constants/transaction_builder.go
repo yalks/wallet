@@ -172,6 +172,30 @@ func (b *TransactionBuilder) WithTargetUser(userID int64, username string) *Tran
 	return b
 }
 
+// WithTokenSymbol sets the token symbol for fund operations
+func (b *TransactionBuilder) WithTokenSymbol(symbol string) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.Metadata["token_symbol"] = strings.TrimSpace(symbol)
+	return b
+}
+
+// WithBusinessID sets the business ID for idempotency
+func (b *TransactionBuilder) WithBusinessID(businessID string) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.Metadata["business_id"] = strings.TrimSpace(businessID)
+	return b
+}
+
+// WithDecimalAmount sets the amount as decimal.Decimal
+func (b *TransactionBuilder) WithDecimalAmount(amount decimal.Decimal) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.Amount = amount.String()
+	return b
+}
+
 // Build validates and returns the transaction request
 func (b *TransactionBuilder) Build() (*TransactionRequest, error) {
 	b.mu.Lock()
@@ -295,6 +319,177 @@ func (b *TransactionBuilder) Reset() *TransactionBuilder {
 		Metadata: make(map[string]interface{}),
 	}
 	return b
+}
+
+// FundOperationBuilder 资金操作构建器
+type FundOperationBuilder struct {
+	userID           uint64
+	tokenSymbol      string
+	amount           decimal.Decimal
+	businessID       string
+	fundType         FundType
+	description      string
+	metadata         map[string]string
+	relatedID        int64
+	requestSource    string
+	requestIP        string
+	requestUserAgent string
+	mu               sync.Mutex
+}
+
+// NewFundOperationBuilder 创建新的资金操作构建器
+func NewFundOperationBuilder() *FundOperationBuilder {
+	return &FundOperationBuilder{
+		metadata: make(map[string]string),
+	}
+}
+
+// WithUser 设置用户ID
+func (b *FundOperationBuilder) WithUser(userID uint64) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.userID = userID
+	return b
+}
+
+// WithTokenSymbol 设置代币符号
+func (b *FundOperationBuilder) WithTokenSymbol(symbol string) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.tokenSymbol = strings.TrimSpace(symbol)
+	return b
+}
+
+// WithAmount 设置操作金额
+func (b *FundOperationBuilder) WithAmount(amount decimal.Decimal) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.amount = amount
+	return b
+}
+
+// WithBusinessID 设置业务ID
+func (b *FundOperationBuilder) WithBusinessID(businessID string) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.businessID = strings.TrimSpace(businessID)
+	return b
+}
+
+// WithFundType 设置资金类型
+func (b *FundOperationBuilder) WithFundType(fundType FundType) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.fundType = fundType
+	return b
+}
+
+// WithDescription 设置操作描述
+func (b *FundOperationBuilder) WithDescription(description string) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.description = strings.TrimSpace(description)
+	return b
+}
+
+// WithMetadata 添加元数据
+func (b *FundOperationBuilder) WithMetadata(key, value string) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if key != "" {
+		b.metadata[key] = value
+	}
+	return b
+}
+
+// WithRelatedID 设置关联ID
+func (b *FundOperationBuilder) WithRelatedID(id int64) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.relatedID = id
+	return b
+}
+
+// WithRequestSource 设置请求来源
+func (b *FundOperationBuilder) WithRequestSource(source string) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.requestSource = strings.TrimSpace(source)
+	return b
+}
+
+// WithRequestIP 设置请求IP
+func (b *FundOperationBuilder) WithRequestIP(ip string) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.requestIP = strings.TrimSpace(ip)
+	return b
+}
+
+// WithRequestUserAgent 设置请求User-Agent
+func (b *FundOperationBuilder) WithRequestUserAgent(userAgent string) *FundOperationBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.requestUserAgent = strings.TrimSpace(userAgent)
+	return b
+}
+
+// FundOperationRequest 资金操作请求结构
+type FundOperationRequest struct {
+	UserID      uint64             `json:"user_id" validate:"required"`
+	TokenSymbol string             `json:"token_symbol" validate:"required"`
+	Amount      decimal.Decimal    `json:"amount" validate:"required,gt=0"`
+	BusinessID  string             `json:"business_id" validate:"required"`
+	FundType    FundType           `json:"fund_type" validate:"required"`
+	Description string             `json:"description"`
+	Metadata    map[string]string  `json:"metadata,omitempty"`
+	RelatedID   int64              `json:"related_id,omitempty"`
+	
+	RequestSource    string `json:"request_source,omitempty"`
+	RequestIP        string `json:"request_ip,omitempty"`
+	RequestUserAgent string `json:"request_user_agent,omitempty"`
+}
+
+// Build 构建并验证资金操作请求
+func (b *FundOperationBuilder) Build() (*FundOperationRequest, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	
+	if b.userID == 0 {
+		return nil, fmt.Errorf("user ID is required")
+	}
+	if b.tokenSymbol == "" {
+		return nil, fmt.Errorf("token symbol is required")
+	}
+	if b.amount.LessThanOrEqual(decimal.Zero) {
+		return nil, fmt.Errorf("amount must be greater than zero")
+	}
+	if b.businessID == "" {
+		return nil, fmt.Errorf("business ID is required")
+	}
+	if !IsValidFundType(b.fundType) {
+		return nil, fmt.Errorf("invalid fund type: %s", b.fundType)
+	}
+	
+	// 创建元数据副本
+	metadata := make(map[string]string)
+	for k, v := range b.metadata {
+		metadata[k] = v
+	}
+	
+	return &FundOperationRequest{
+		UserID:           b.userID,
+		TokenSymbol:      b.tokenSymbol,
+		Amount:           b.amount,
+		BusinessID:       b.businessID,
+		FundType:         b.fundType,
+		Description:      b.description,
+		Metadata:         metadata,
+		RelatedID:        b.relatedID,
+		RequestSource:    b.requestSource,
+		RequestIP:        b.requestIP,
+		RequestUserAgent: b.requestUserAgent,
+	}, nil
 }
 
 

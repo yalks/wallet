@@ -10,6 +10,7 @@ import (
 )
 
 // FundOperationRequest 资金操作请求
+// Deprecated: Use constants.FundOperationRequest instead
 type FundOperationRequest struct {
 	UserID      uint64             `json:"user_id" validate:"required"`      // 用户ID
 	TokenSymbol string             `json:"token_symbol" validate:"required"` // 代币符号
@@ -71,19 +72,25 @@ type IWalletManager interface {
 	GetBalance(ctx context.Context, userID uint64, tokenSymbol string) (*BalanceInfo, error)
 
 	// 事务中的操作（已废弃，请使用 ProcessFundOperationInTx）
-	// Deprecated: Use ProcessFundOperationInTx instead
+	// Deprecated: Use ProcessFundOperationInTx instead. These methods will be removed in future versions.
+	// Applications should not call these methods directly.
 	CreditFundsInTx(ctx context.Context, tx gdb.TX, req *FundOperationRequest) (*FundOperationResult, error)
-	// Deprecated: Use ProcessFundOperationInTx instead
+	// Deprecated: Use ProcessFundOperationInTx instead. These methods will be removed in future versions.
+	// Applications should not call these methods directly.
 	DebitFundsInTx(ctx context.Context, tx gdb.TX, req *FundOperationRequest) (*FundOperationResult, error)
 
 	// 推荐使用：基于资金类型的通用操作方法
-	ProcessFundOperationInTx(ctx context.Context, tx gdb.TX, req *FundOperationRequest) (*FundOperationResult, error)
+	// Use constants.FundOperationBuilder to create the request
+	ProcessFundOperationInTx(ctx context.Context, tx gdb.TX, req *constants.FundOperationRequest) (*FundOperationResult, error)
 
 	// 推荐使用：转账操作（双方交易的原子操作）
 	ProcessTransferInTx(ctx context.Context, tx gdb.TX, req *TransferOperationRequest) (*TransferOperationResult, error)
 
 	// 推荐使用：使用 TransactionBuilder 创建交易
 	CreateTransactionWithBuilder(ctx context.Context, txReq *constants.TransactionRequest) (int64, error)
+
+	// 推荐使用：使用 FundOperationBuilder 创建资金操作
+	ProcessFundOperationWithBuilder(ctx context.Context, tx gdb.TX, builder *constants.FundOperationBuilder) (*FundOperationResult, error)
 }
 
 // TransferOperationResult 转账操作结果
