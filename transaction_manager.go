@@ -19,22 +19,22 @@ import (
 
 // transactionManager 实现事务管理器接口
 type transactionManager struct {
-	mu            sync.RWMutex
-	logic         *logic.SharedLogicContext
-	tokenLogic    logic.ITokenLogic
-	userLogic     logic.IUserLogic
-	balanceLogic  logic.IBalanceLogic
-	validator     *logic.TransactionValidator
+	mu           sync.RWMutex
+	logic        *logic.SharedLogicContext
+	tokenLogic   logic.ITokenLogic
+	userLogic    logic.IUserLogic
+	balanceLogic logic.IBalanceLogic
+	validator    *logic.TransactionValidator
 }
 
 // NewTransactionManager 创建事务管理器
 func NewTransactionManager() ITransactionManager {
 	return &transactionManager{
-		logic:         logic.GetSharedContext(),
-		tokenLogic:    logic.NewTokenLogic(),
-		userLogic:     logic.NewUserLogic(),
-		balanceLogic:  logic.NewBalanceLogic(),
-		validator:     logic.NewTransactionValidator(),
+		logic:        logic.GetSharedContext(),
+		tokenLogic:   logic.NewTokenLogic(),
+		userLogic:    logic.NewUserLogic(),
+		balanceLogic: logic.NewBalanceLogic(),
+		validator:    logic.NewTransactionValidator(),
 	}
 }
 
@@ -119,7 +119,7 @@ func (tm *transactionManager) CreateTransaction(ctx context.Context, req *consta
 			RelatedEntityType: "fund_operation",
 			CreatedAt:         gtime.Now(),
 			UpdatedAt:         gtime.Now(),
-			
+
 			// New fields - User request information
 			RequestAmount:    amount, // Using the same amount as the transaction amount
 			RequestReference: req.Reference,
@@ -129,14 +129,14 @@ func (tm *transactionManager) CreateTransaction(ctx context.Context, req *consta
 			RequestUserAgent: req.RequestUserAgent,
 			RequestTimestamp: gtime.Now(),
 			ProcessedAt:      gtime.Now(),
-			
+
 			// Use fee from request parameters
 			FeeAmount: tm.parseFeeAmount(req.FeeAmount),
 			FeeType:   req.FeeType,
-			
+
 			// Exchange rate (set to 1 if no conversion)
 			ExchangeRate: decimal.NewFromInt(1),
-			
+
 			// Target user fields for transfers
 			TargetUserId:   uint(req.TargetUserID),
 			TargetUsername: req.TargetUsername,
@@ -301,7 +301,7 @@ func (tm *transactionManager) validateTransactionRequest(req *constants.Transact
 	if req.Reference == "" {
 		return gerror.New("交易引用不能为空")
 	}
-	
+
 	// 验证新字段
 	if req.RequestSource != "" && !tm.validator.ValidateRequestSource(req.RequestSource) {
 		return gerror.Newf("无效的请求来源: %s (允许的值: %v)", req.RequestSource, tm.validator.GetAllowedSources())
@@ -323,13 +323,17 @@ func (tm *transactionManager) validateTransactionRequest(req *constants.Transact
 func (tm *transactionManager) getTransactionByReference(ctx context.Context, tx gdb.TX, reference string) (*entity.Transactions, error) {
 	var transaction entity.Transactions
 
-	model := g.Model("transactions").Ctx(ctx).Where("reference = ? OR business_id = ?", reference, reference)
+	model := g.Model("transactions").Ctx(ctx).Where("request_reference = ? OR business_id = ?", reference, reference)
 	if tx != nil {
 		model = model.TX(tx)
 	}
 
 	err := model.Scan(&transaction)
 	if err != nil {
+		// 如果是没有找到记录，这是正常情况，不应该返回错误
+		if err.Error() == "sql: no rows in result set" {
+			return nil, nil
+		}
 		return nil, gerror.Wrapf(err, "查询交易记录失败: Reference=%s", reference)
 	}
 
@@ -453,13 +457,13 @@ func (tm *transactionManager) convertMetadataToJSON(metadata map[string]interfac
 	if metadata == nil || len(metadata) == 0 {
 		return "{}"
 	}
-	
+
 	data, err := json.Marshal(metadata)
 	if err != nil {
 		g.Log().Errorf(context.Background(), "转换元数据到JSON失败: %v", err)
 		return "{}"
 	}
-	
+
 	return string(data)
 }
 
