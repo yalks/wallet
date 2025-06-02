@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -18,20 +19,24 @@ import (
 
 // transactionManager 实现事务管理器接口
 type transactionManager struct {
-	mu           sync.RWMutex
-	logic        *logic.SharedLogicContext
-	tokenLogic   logic.ITokenLogic
-	userLogic    logic.IUserLogic
-	balanceLogic logic.IBalanceLogic
+	mu            sync.RWMutex
+	logic         *logic.SharedLogicContext
+	tokenLogic    logic.ITokenLogic
+	userLogic     logic.IUserLogic
+	balanceLogic  logic.IBalanceLogic
+	feeCalculator *logic.FeeCalculator
+	validator     *logic.TransactionValidator
 }
 
 // NewTransactionManager 创建事务管理器
 func NewTransactionManager() ITransactionManager {
 	return &transactionManager{
-		logic:        logic.GetSharedContext(),
-		tokenLogic:   logic.NewTokenLogic(),
-		userLogic:    logic.NewUserLogic(),
-		balanceLogic: logic.NewBalanceLogic(),
+		logic:         logic.GetSharedContext(),
+		tokenLogic:    logic.NewTokenLogic(),
+		userLogic:     logic.NewUserLogic(),
+		balanceLogic:  logic.NewBalanceLogic(),
+		feeCalculator: logic.NewFeeCalculator(),
+		validator:     logic.NewTransactionValidator(),
 	}
 }
 
@@ -116,6 +121,27 @@ func (tm *transactionManager) CreateTransaction(ctx context.Context, req *consta
 			RelatedEntityType: "fund_operation",
 			CreatedAt:         gtime.Now(),
 			UpdatedAt:         gtime.Now(),
+			
+			// New fields - User request information
+			RequestAmount:    amount, // Using the same amount as the transaction amount
+			RequestReference: req.Reference,
+			RequestMetadata:  tm.convertMetadataToJSON(req.Metadata),
+			RequestSource:    tm.validator.SanitizeRequestSource(req.RequestSource),
+			RequestIp:        req.RequestIP,
+			RequestUserAgent: req.RequestUserAgent,
+			RequestTimestamp: gtime.Now(),
+			ProcessedAt:      gtime.Now(),
+			
+			// Calculate fee based on fund type
+			FeeAmount: tm.calculateFee(req.FundType, amount),
+			FeeType:   tm.getFeeType(req.FundType),
+			
+			// Exchange rate (set to 1 if no conversion)
+			ExchangeRate: decimal.NewFromInt(1),
+			
+			// Target user fields for transfers
+			TargetUserId:   uint(req.TargetUserID),
+			TargetUsername: req.TargetUsername,
 		}
 
 		// 插入交易记录
@@ -277,6 +303,20 @@ func (tm *transactionManager) validateTransactionRequest(req *constants.Transact
 	if req.Reference == "" {
 		return gerror.New("交易引用不能为空")
 	}
+	
+	// 验证新字段
+	if req.RequestSource != "" && !tm.validator.ValidateRequestSource(req.RequestSource) {
+		return gerror.Newf("无效的请求来源: %s (允许的值: %v)", req.RequestSource, tm.validator.GetAllowedSources())
+	}
+	if req.RequestIP != "" && !tm.validator.ValidateIP(req.RequestIP) {
+		return gerror.Newf("无效的IP地址格式: %s", req.RequestIP)
+	}
+	if req.FeeType != "" && !tm.validator.ValidateFeeType(req.FeeType) {
+		return gerror.Newf("无效的手续费类型: %s (允许的值: fixed, percentage)", req.FeeType)
+	}
+	if req.RequestUserAgent != "" && !tm.validator.ValidateUserAgent(req.RequestUserAgent) {
+		return gerror.New("User-Agent过长，最大长度为1000字符")
+	}
 
 	return nil
 }
@@ -406,4 +446,31 @@ func intToStatus(status uint) constants.TransactionStatus {
 	default:
 		return constants.TransactionStatusFailed
 	}
+}
+
+// convertMetadataToJSON 将元数据map转换为JSON字符串
+func (tm *transactionManager) convertMetadataToJSON(metadata map[string]interface{}) string {
+	if metadata == nil || len(metadata) == 0 {
+		return "{}"
+	}
+	
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		g.Log().Errorf(context.Background(), "转换元数据到JSON失败: %v", err)
+		return "{}"
+	}
+	
+	return string(data)
+}
+
+// calculateFee 计算手续费
+func (tm *transactionManager) calculateFee(fundType constants.FundType, amount decimal.Decimal) decimal.Decimal {
+	fee, _ := tm.feeCalculator.CalculateFee(fundType, amount)
+	return fee
+}
+
+// getFeeType 获取手续费类型
+func (tm *transactionManager) getFeeType(fundType constants.FundType) string {
+	_, feeType := tm.feeCalculator.CalculateFee(fundType, decimal.Zero)
+	return feeType
 }

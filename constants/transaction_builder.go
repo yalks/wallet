@@ -21,6 +21,17 @@ type TransactionRequest struct {
 	Description  string
 	RelatedID    int64  // Related entity ID (e.g., red packet ID, transfer ID)
 	Metadata     map[string]interface{}
+	
+	// New fields for request context
+	RequestSource    string // Request source (telegram, web, api, admin)
+	RequestIP        string // User's IP address
+	RequestUserAgent string // User's User-Agent
+	
+	// New fields for transaction details
+	FeeAmount      string // Fee amount (as string to maintain precision)
+	FeeType        string // Fee type (fixed, percentage)
+	TargetUserID   int64  // Target user ID for transfers
+	TargetUsername string // Target username for transfers
 }
 
 // TransactionBuilder helps build transaction requests with proper validation
@@ -109,6 +120,55 @@ func (b *TransactionBuilder) WithMetadata(key string, value interface{}) *Transa
 	if key != "" {
 		b.request.Metadata[key] = value
 	}
+	return b
+}
+
+// WithRequestSource sets the request source
+func (b *TransactionBuilder) WithRequestSource(source string) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.RequestSource = strings.TrimSpace(source)
+	return b
+}
+
+// WithRequestIP sets the request IP
+func (b *TransactionBuilder) WithRequestIP(ip string) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.RequestIP = strings.TrimSpace(ip)
+	return b
+}
+
+// WithRequestUserAgent sets the request user agent
+func (b *TransactionBuilder) WithRequestUserAgent(userAgent string) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.RequestUserAgent = strings.TrimSpace(userAgent)
+	return b
+}
+
+// WithFeeAmount sets the fee amount
+func (b *TransactionBuilder) WithFeeAmount(feeAmount string) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.FeeAmount = strings.TrimSpace(feeAmount)
+	return b
+}
+
+// WithFeeType sets the fee type
+func (b *TransactionBuilder) WithFeeType(feeType string) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.FeeType = strings.TrimSpace(feeType)
+	return b
+}
+
+// WithTargetUser sets the target user information
+func (b *TransactionBuilder) WithTargetUser(userID int64, username string) *TransactionBuilder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.request.TargetUserID = userID
+	b.request.TargetUsername = strings.TrimSpace(username)
 	return b
 }
 
@@ -254,7 +314,7 @@ func BuildRedPacketCreateTransaction(userID, walletID int64, amount string, toke
 }
 
 // BuildTransferOutTransaction builds a transfer out transaction
-func BuildTransferOutTransaction(userID, walletID int64, amount string, tokenID int64, transferID int64, recipientUsername string) (*TransactionRequest, error) {
+func BuildTransferOutTransaction(userID, walletID int64, amount string, tokenID int64, transferID int64, recipientUserID int64, recipientUsername string) (*TransactionRequest, error) {
 	return NewTransactionBuilder().
 		WithUser(userID).
 		WithWallet(walletID).
@@ -262,6 +322,7 @@ func BuildTransferOutTransaction(userID, walletID int64, amount string, tokenID 
 		WithToken(tokenID).
 		WithFundType(FundTypeTransferOut).
 		WithRelatedID(transferID).
+		WithTargetUser(recipientUserID, recipientUsername).
 		WithMetadata("transfer_id", transferID).
 		WithMetadata("recipient", recipientUsername).
 		Build()

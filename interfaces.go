@@ -19,6 +19,11 @@ type FundOperationRequest struct {
 	Description string             `json:"description"`                      // 操作描述
 	Metadata    map[string]string  `json:"metadata,omitempty"`               // 扩展元数据
 	RelatedID   int64              `json:"related_id,omitempty"`             // 关联ID（如红包ID、转账ID等）
+	
+	// Request context fields (optional)
+	RequestSource    string `json:"request_source,omitempty"`     // 请求来源 (telegram, web, api, admin)
+	RequestIP        string `json:"request_ip,omitempty"`         // 用户IP地址
+	RequestUserAgent string `json:"request_user_agent,omitempty"` // 用户User-Agent
 }
 
 // TransferOperationRequest 转账操作请求（双方交易）
@@ -32,6 +37,14 @@ type TransferOperationRequest struct {
 	Description string             `json:"description"`                      // 操作描述
 	Metadata    map[string]string  `json:"metadata,omitempty"`               // 扩展元数据
 	RelatedID   int64              `json:"related_id,omitempty"`             // 关联ID
+	
+	// Request context fields (optional)
+	RequestSource    string `json:"request_source,omitempty"`     // 请求来源 (telegram, web, api, admin)
+	RequestIP        string `json:"request_ip,omitempty"`         // 用户IP地址
+	RequestUserAgent string `json:"request_user_agent,omitempty"` // 用户User-Agent
+	
+	// Transfer specific fields
+	ToUsername string `json:"to_username,omitempty"` // 接收方用户名
 }
 
 // FundOperationResult 资金操作结果

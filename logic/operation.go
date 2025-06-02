@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	sdkTypes "github.com/a19ba14d/ledger-wallet-sdk/pkg/types"
@@ -53,19 +54,21 @@ type IOperationLogic interface {
 }
 
 type operationLogic struct {
-	userLogic    IUserLogic
-	tokenLogic   ITokenLogic
-	balanceLogic IBalanceLogic
-	context      *SharedLogicContext
+	userLogic     IUserLogic
+	tokenLogic    ITokenLogic
+	balanceLogic  IBalanceLogic
+	context       *SharedLogicContext
+	feeCalculator *FeeCalculator
 }
 
 // NewOperationLogic 创建操作业务逻辑实例
 func NewOperationLogic() IOperationLogic {
 	return &operationLogic{
-		userLogic:    NewUserLogic(),
-		tokenLogic:   NewTokenLogic(),
-		balanceLogic: NewBalanceLogic(),
-		context:      GetSharedContext(),
+		userLogic:     NewUserLogic(),
+		tokenLogic:    NewTokenLogic(),
+		balanceLogic:  NewBalanceLogic(),
+		context:       GetSharedContext(),
+		feeCalculator: NewFeeCalculator(),
 	}
 }
 
@@ -395,6 +398,9 @@ func (l *operationLogic) createTransactionRecord(ctx context.Context, tx gdb.TX,
 		return 0, err
 	}
 
+	// 从上下文提取请求信息
+	reqCtx := ExtractRequestContext(ctx)
+	
 	// 创建交易记录（使用decimal格式）
 	transaction := &entity.Transactions{
 		UserId:        uint(req.UserID),
@@ -411,6 +417,27 @@ func (l *operationLogic) createTransactionRecord(ctx context.Context, tx gdb.TX,
 		BusinessId:    req.BusinessID, // 添加业务ID用于幂等性检查
 		CreatedAt:     gtime.Now(),
 		UpdatedAt:     gtime.Now(),
+		
+		// New fields - User request information
+		RequestAmount:    req.Amount, // Using the original request amount
+		RequestReference: req.BusinessID,
+		RequestMetadata:  l.mergeMetadataToJSON(reqCtx.Metadata, req.Metadata),
+		RequestSource:    reqCtx.Source,
+		RequestIp:        reqCtx.IP,
+		RequestUserAgent: reqCtx.UserAgent,
+		RequestTimestamp: gtime.Now(),
+		ProcessedAt:      gtime.Now(),
+		
+		// Calculate fee based on operation type
+		FeeAmount: l.calculateFee(req.OperationType, req.Amount),
+		FeeType:   l.getFeeType(req.OperationType),
+		
+		// Exchange rate (set to 1 if no conversion)
+		ExchangeRate: decimal.NewFromInt(1),
+		
+		// Target user fields (populated from request metadata for transfers)
+		TargetUserId:   l.extractTargetUserId(req.Metadata),
+		TargetUsername: l.extractTargetUsername(req.Metadata),
 	}
 
 	transactionID, err := l.context.GetTransactionDAO().CreateTransaction(ctx, tx, transaction)
@@ -622,4 +649,72 @@ func (l *operationLogic) getDirection(operationType OperationType) string {
 	default:
 		return "in"
 	}
+}
+
+// calculateFee 计算手续费 (暂时返回0，因为OperationType不直接对应FundType)
+func (l *operationLogic) calculateFee(operationType OperationType, amount decimal.Decimal) decimal.Decimal {
+	// TODO: Map OperationType to FundType or add fee calculation logic for operations
+	return decimal.Zero
+}
+
+// getFeeType 获取手续费类型
+func (l *operationLogic) getFeeType(operationType OperationType) string {
+	// TODO: Map OperationType to FundType or add fee type logic for operations
+	return ""
+}
+
+// extractTargetUserId 从元数据中提取目标用户ID
+func (l *operationLogic) extractTargetUserId(metadata map[string]string) uint {
+	if metadata == nil {
+		return 0
+	}
+	
+	if targetUserIdStr, exists := metadata["target_user_id"]; exists {
+		var targetUserId uint64
+		if _, err := fmt.Sscanf(targetUserIdStr, "%d", &targetUserId); err == nil {
+			return uint(targetUserId)
+		}
+	}
+	
+	return 0
+}
+
+// extractTargetUsername 从元数据中提取目标用户名
+func (l *operationLogic) extractTargetUsername(metadata map[string]string) string {
+	if metadata == nil {
+		return ""
+	}
+	
+	if targetUsername, exists := metadata["target_username"]; exists {
+		return targetUsername
+	}
+	
+	return ""
+}
+
+// mergeMetadataToJSON 合并请求上下文元数据和业务元数据并转换为JSON
+func (l *operationLogic) mergeMetadataToJSON(contextMetadata, businessMetadata map[string]string) string {
+	merged := make(map[string]string)
+	
+	// 先添加上下文元数据
+	for k, v := range contextMetadata {
+		merged[k] = v
+	}
+	
+	// 再添加业务元数据（可能覆盖上下文元数据）
+	for k, v := range businessMetadata {
+		merged[k] = v
+	}
+	
+	if len(merged) == 0 {
+		return "{}"
+	}
+	
+	data, err := json.Marshal(merged)
+	if err != nil {
+		g.Log().Errorf(context.Background(), "合并元数据到JSON失败: %v", err)
+		return "{}"
+	}
+	
+	return string(data)
 }

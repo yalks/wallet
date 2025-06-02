@@ -244,28 +244,44 @@ func (m *walletManager) ProcessTransferInTx(ctx context.Context, tx gdb.TX, req 
 		return nil, err
 	}
 
+	// 添加目标用户信息到元数据
+	debitMetadata := make(map[string]string)
+	for k, v := range req.Metadata {
+		debitMetadata[k] = v
+	}
+	debitMetadata["target_user_id"] = fmt.Sprintf("%d", req.ToUserID)
+	if req.ToUsername != "" {
+		debitMetadata["target_username"] = req.ToUsername
+	}
+
 	// 构建发送方扣款请求
 	debitReq := &FundOperationRequest{
-		UserID:      req.FromUserID,
-		TokenSymbol: req.TokenSymbol,
-		Amount:      req.Amount,
-		BusinessID:  req.BusinessID + "_debit",
-		FundType:    req.FundType,
-		Description: fmt.Sprintf("转账给用户%d: %s", req.ToUserID, req.Description),
-		Metadata:    req.Metadata,
-		RelatedID:   req.RelatedID,
+		UserID:           req.FromUserID,
+		TokenSymbol:      req.TokenSymbol,
+		Amount:           req.Amount,
+		BusinessID:       req.BusinessID + "_debit",
+		FundType:         req.FundType,
+		Description:      fmt.Sprintf("转账给用户%d: %s", req.ToUserID, req.Description),
+		Metadata:         debitMetadata,
+		RelatedID:        req.RelatedID,
+		RequestSource:    req.RequestSource,
+		RequestIP:        req.RequestIP,
+		RequestUserAgent: req.RequestUserAgent,
 	}
 
 	// 构建接收方加款请求
 	creditReq := &FundOperationRequest{
-		UserID:      req.ToUserID,
-		TokenSymbol: req.TokenSymbol,
-		Amount:      req.Amount,
-		BusinessID:  req.BusinessID + "_credit",
-		FundType:    req.FundType,
-		Description: fmt.Sprintf("收到用户%d转账: %s", req.FromUserID, req.Description),
-		Metadata:    req.Metadata,
-		RelatedID:   req.RelatedID,
+		UserID:           req.ToUserID,
+		TokenSymbol:      req.TokenSymbol,
+		Amount:           req.Amount,
+		BusinessID:       req.BusinessID + "_credit",
+		FundType:         req.FundType,
+		Description:      fmt.Sprintf("收到用户%d转账: %s", req.FromUserID, req.Description),
+		Metadata:         req.Metadata,
+		RelatedID:        req.RelatedID,
+		RequestSource:    req.RequestSource,
+		RequestIP:        req.RequestIP,
+		RequestUserAgent: req.RequestUserAgent,
 	}
 
 	// 执行发送方扣款
