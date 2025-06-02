@@ -1,4 +1,4 @@
-.PHONY: all build test clean fmt lint vet coverage deps help
+.PHONY: all build test clean fmt lint vet coverage deps help release-patch release-minor release-major quick-release
 
 # Default target
 all: fmt vet test build
@@ -78,6 +78,23 @@ install-tools:
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
+# Release management
+release-patch:
+	@echo "Creating patch release..."
+	@./release.sh patch
+
+release-minor:
+	@echo "Creating minor release..."
+	@./release.sh minor
+
+release-major:
+	@echo "Creating major release..."
+	@./release.sh major
+
+quick-release:
+	@echo "Quick patch release..."
+	@./quick-release.sh
+
 # Show help
 help:
 	@echo "Available targets:"
@@ -96,4 +113,11 @@ help:
 	@echo "  make docs       - Start documentation server"
 	@echo "  make check      - Run all checks (fmt, vet, lint, test)"
 	@echo "  make install-tools - Install development tools"
+	@echo ""
+	@echo "Release targets:"
+	@echo "  make quick-release  - Quick patch release (recommended)"
+	@echo "  make release-patch  - Create patch release (x.x.X)"
+	@echo "  make release-minor  - Create minor release (x.X.0)"
+	@echo "  make release-major  - Create major release (X.0.0)"
+	@echo ""
 	@echo "  make help       - Show this help message"
