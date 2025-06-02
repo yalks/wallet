@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/yalks/wallet/constants"
+
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/shopspring/decimal"
 )
 
 // ExampleUsage 展示如何使用独立的钱包模块
@@ -34,31 +35,37 @@ func ExampleUsage() {
 		fmt.Printf("  最后同步时间: %s\n", balanceInfo.LastSyncTime)
 	}
 
-	// 示例2: 在事务中增加资金
-	fmt.Println("\n=== 示例2: 增加资金 ===")
+	// 示例2: 使用 TransactionBuilder 创建充值交易（自动生成Reference）
+	fmt.Println("\n=== 示例2: 使用Builder模式增加资金（自动生成Reference） ===")
 	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
-		req := &FundOperationRequest{
-			UserID:      userID,
-			TokenSymbol: tokenSymbol,
-			Amount:      decimal.NewFromFloat(100.50),
-			BusinessID:  "deposit_20240527_001",
-			Description: "用户充值",
-			Metadata: map[string]string{
-				"source": "bank_transfer",
-				"ref_id": "TXN123456",
-			},
+		// 使用 TransactionBuilder 构建交易请求
+		txReq, err := constants.NewTransactionBuilder().
+			WithUser(int64(userID)).
+			WithWallet(1). // 假设钱包ID为1，实际应用中需要获取真实钱包ID
+			WithAmount("100.50").
+			WithToken(1). // 假设USDT的token ID为1，实际应用中需要获取真实token ID
+			WithFundType(constants.FundTypeDeposit).
+			// WithReference 是可选的，这里不设置，将自动生成格式: {FundType}_{UserID}_{Timestamp}
+			// 不调用 WithReference，让系统自动生成
+			WithDescription("用户充值").
+			WithRequestSource("api").
+			WithMetadata("source", "bank_transfer").
+			WithMetadata("ref_id", "TXN123456").
+			Build()
+		if err != nil {
+			return err
 		}
 
-		result, err := walletMgr.CreditFundsInTx(ctx, tx, req)
+		transactionID, err := walletMgr.CreateTransactionWithBuilder(ctx, txReq)
 		if err != nil {
 			return err
 		}
 
 		fmt.Printf("资金增加成功:\n")
-		fmt.Printf("  交易ID: %s\n", result.TransactionID)
-		fmt.Printf("  操作前余额: %s\n", result.BalanceBefore.String())
-		fmt.Printf("  操作后余额: %s\n", result.BalanceAfter.String())
-		fmt.Printf("  原始金额: %s\n", result.RawAmount.String())
+		fmt.Printf("  交易ID: %d\n", transactionID)
+		fmt.Printf("  金额: %s\n", txReq.Amount)
+		fmt.Printf("  资金类型: %s\n", txReq.FundType)
+		fmt.Printf("  业务引用（自动生成）: %s\n", txReq.Reference)
 
 		return nil
 	})
@@ -67,31 +74,37 @@ func ExampleUsage() {
 		g.Log().Errorf(ctx, "增加资金失败: %v", err)
 	}
 
-	// 示例3: 在事务中减少资金
-	fmt.Println("\n=== 示例3: 减少资金 ===")
+	// 示例3: 使用 TransactionBuilder 创建提现交易（用户自定义Reference）
+	fmt.Println("\n=== 示例3: 使用Builder模式减少资金（用户自定义Reference） ===")
 	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
-		req := &FundOperationRequest{
-			UserID:      userID,
-			TokenSymbol: tokenSymbol,
-			Amount:      decimal.NewFromFloat(50.25),
-			BusinessID:  "withdraw_20240527_001",
-			Description: "用户提现",
-			Metadata: map[string]string{
-				"destination": "user_wallet",
-				"address":     "TXXXxxxXXXxxxXXX",
-			},
+		// 使用 TransactionBuilder 构建提现交易请求
+		txReq, err := constants.NewTransactionBuilder().
+			WithUser(int64(userID)).
+			WithWallet(1). // 假设钱包ID为1，实际应用中需要获取真实钱包ID
+			WithAmount("50.25").
+			WithToken(1). // 假设USDT的token ID为1，实际应用中需要获取真实token ID
+			WithFundType(constants.FundTypeWithdraw).
+			// 用户提供自定义引用ID（如银行流水号、第三方支付订单号等）
+			WithReference("BANK_TXN_withdraw_20240527_001").
+			WithDescription("用户提现").
+			WithRequestSource("api").
+			WithMetadata("destination", "user_wallet").
+			WithMetadata("address", "TXXXxxxXXXxxxXXX").
+			Build()
+		if err != nil {
+			return err
 		}
 
-		result, err := walletMgr.DebitFundsInTx(ctx, tx, req)
+		transactionID, err := walletMgr.CreateTransactionWithBuilder(ctx, txReq)
 		if err != nil {
 			return err
 		}
 
 		fmt.Printf("资金减少成功:\n")
-		fmt.Printf("  交易ID: %s\n", result.TransactionID)
-		fmt.Printf("  操作前余额: %s\n", result.BalanceBefore.String())
-		fmt.Printf("  操作后余额: %s\n", result.BalanceAfter.String())
-		fmt.Printf("  原始金额: %s\n", result.RawAmount.String())
+		fmt.Printf("  交易ID: %d\n", transactionID)
+		fmt.Printf("  金额: %s\n", txReq.Amount)
+		fmt.Printf("  资金类型: %s\n", txReq.FundType)
+		fmt.Printf("  业务引用（用户自定义）: %s\n", txReq.Reference)
 
 		return nil
 	})
@@ -99,6 +112,67 @@ func ExampleUsage() {
 	if err != nil {
 		g.Log().Errorf(ctx, "减少资金失败: %v", err)
 	}
+
+	// 示例4: 使用预定义的Builder函数创建转账交易
+	fmt.Println("\n=== 示例4: 使用预定义Builder创建转账 ===")
+	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		// 使用预定义的Builder函数创建转账交易
+		txReq, err := constants.BuildTransferOutTransaction(
+			int64(userID), // 发送方用户ID
+			1,             // 钱包ID
+			"25.75",       // 转账金额
+			1,             // token ID
+			12345,         // 转账ID
+			67890,         // 接收方用户ID
+			"recipient_user", // 接收方用户名
+		)
+		if err != nil {
+			return err
+		}
+
+		transactionID, err := walletMgr.CreateTransactionWithBuilder(ctx, txReq)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("转账交易创建成功:\n")
+		fmt.Printf("  交易ID: %d\n", transactionID)
+		fmt.Printf("  金额: %s\n", txReq.Amount)
+		fmt.Printf("  接收方: %s (ID: %d)\n", txReq.TargetUsername, txReq.TargetUserID)
+		fmt.Printf("  转账引用ID: %d\n", txReq.RelatedID)
+
+		return nil
+	})
+
+	if err != nil {
+		g.Log().Errorf(ctx, "创建转账交易失败: %v", err)
+	}
+
+	// 示例5: 展示Reference的不同用法对比
+	fmt.Println("\n=== 示例5: Reference用法对比 ===")
+	
+	// 5.1 完全省略WithReference，让系统自动生成
+	fmt.Println("5.1 自动生成Reference:")
+	txReq1, _ := constants.NewTransactionBuilder().
+		WithUser(int64(userID)).
+		WithWallet(1).
+		WithAmount("10.00").
+		WithToken(1).
+		WithFundType(constants.FundTypeDeposit).
+		Build()
+	fmt.Printf("  自动生成的Reference: %s\n", txReq1.Reference)
+	
+	// 5.2 用户自定义Reference
+	fmt.Println("5.2 用户自定义Reference:")
+	txReq2, _ := constants.NewTransactionBuilder().
+		WithUser(int64(userID)).
+		WithWallet(1).
+		WithAmount("10.00").
+		WithToken(1).
+		WithFundType(constants.FundTypeDeposit).
+		WithReference("CUSTOM_REF_12345").
+		Build()
+	fmt.Printf("  用户自定义的Reference: %s\n", txReq2.Reference)
 
 	fmt.Println("\n=== 钱包模块使用示例完成 ===")
 }

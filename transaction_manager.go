@@ -24,7 +24,6 @@ type transactionManager struct {
 	tokenLogic    logic.ITokenLogic
 	userLogic     logic.IUserLogic
 	balanceLogic  logic.IBalanceLogic
-	feeCalculator *logic.FeeCalculator
 	validator     *logic.TransactionValidator
 }
 
@@ -35,7 +34,6 @@ func NewTransactionManager() ITransactionManager {
 		tokenLogic:    logic.NewTokenLogic(),
 		userLogic:     logic.NewUserLogic(),
 		balanceLogic:  logic.NewBalanceLogic(),
-		feeCalculator: logic.NewFeeCalculator(),
 		validator:     logic.NewTransactionValidator(),
 	}
 }
@@ -132,9 +130,9 @@ func (tm *transactionManager) CreateTransaction(ctx context.Context, req *consta
 			RequestTimestamp: gtime.Now(),
 			ProcessedAt:      gtime.Now(),
 			
-			// Calculate fee based on fund type
-			FeeAmount: tm.calculateFee(req.FundType, amount),
-			FeeType:   tm.getFeeType(req.FundType),
+			// Use fee from request parameters
+			FeeAmount: tm.parseFeeAmount(req.FeeAmount),
+			FeeType:   req.FeeType,
 			
 			// Exchange rate (set to 1 if no conversion)
 			ExchangeRate: decimal.NewFromInt(1),
@@ -158,7 +156,7 @@ func (tm *transactionManager) CreateTransaction(ctx context.Context, req *consta
 		}
 
 		// 执行远程钱包操作
-		err = tm.executeRemoteOperation(ctx, user, token, amount, req.FundType, req.Metadata)
+		err = tm.executeRemoteOperation(ctx, user, token, amount, req.FundType, req.Metadata, req.FeeAmount, req.FeeType)
 		if err != nil {
 			return gerror.Wrap(err, "执行远程钱包操作失败")
 		}
@@ -343,7 +341,7 @@ func (tm *transactionManager) getTransactionByReference(ctx context.Context, tx 
 }
 
 // executeRemoteOperation 执行远程钱包操作
-func (tm *transactionManager) executeRemoteOperation(ctx context.Context, user *entity.Users, token *entity.Tokens, amount decimal.Decimal, fundType constants.FundType, metadata map[string]interface{}) error {
+func (tm *transactionManager) executeRemoteOperation(ctx context.Context, user *entity.Users, token *entity.Tokens, amount decimal.Decimal, fundType constants.FundType, metadata map[string]interface{}, feeAmount string, feeType string) error {
 	walletSDK := tm.logic.GetWalletSDK()
 	if walletSDK == nil {
 		return gerror.New("钱包SDK未初始化")
@@ -378,6 +376,8 @@ func (tm *transactionManager) executeRemoteOperation(ctx context.Context, user *
 		BusinessID:  fmt.Sprintf("%s_%d", fundType, gtime.Now().UnixNano()),
 		Description: fmt.Sprintf("Transaction for %s", fundType),
 		Metadata:    sdkMetadata,
+		FeeAmount:   tm.parseFeeAmount(feeAmount),
+		FeeType:     feeType,
 	}
 
 	// 根据方向设置操作类型
@@ -463,14 +463,15 @@ func (tm *transactionManager) convertMetadataToJSON(metadata map[string]interfac
 	return string(data)
 }
 
-// calculateFee 计算手续费
-func (tm *transactionManager) calculateFee(fundType constants.FundType, amount decimal.Decimal) decimal.Decimal {
-	fee, _ := tm.feeCalculator.CalculateFee(fundType, amount)
-	return fee
-}
-
-// getFeeType 获取手续费类型
-func (tm *transactionManager) getFeeType(fundType constants.FundType) string {
-	_, feeType := tm.feeCalculator.CalculateFee(fundType, decimal.Zero)
-	return feeType
+// parseFeeAmount 解析手续费金额
+func (tm *transactionManager) parseFeeAmount(feeAmountStr string) decimal.Decimal {
+	if feeAmountStr == "" {
+		return decimal.Zero
+	}
+	feeAmount, err := decimal.NewFromString(feeAmountStr)
+	if err != nil {
+		g.Log().Warningf(context.Background(), "解析手续费金额失败: %s, 错误: %v", feeAmountStr, err)
+		return decimal.Zero
+	}
+	return feeAmount
 }

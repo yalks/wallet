@@ -3,7 +3,6 @@ package logic
 import (
 	"context"
 	"encoding/json"
-	"net"
 	"strings"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -33,7 +32,7 @@ func ExtractRequestContext(ctx context.Context) *RequestContext {
 	if r := ghttp.RequestFromCtx(ctx); r != nil {
 		return &RequestContext{
 			Source:    extractSource(r),
-			IP:        extractClientIP(r),
+			IP:        "", // IP must be explicitly passed, not extracted from headers
 			UserAgent: r.Header.Get("User-Agent"),
 			Metadata:  extractMetadata(r),
 		}
@@ -93,34 +92,6 @@ func extractSource(r *ghttp.Request) string {
 	return "web"
 }
 
-// extractClientIP extracts the real client IP address
-func extractClientIP(r *ghttp.Request) string {
-	// Try X-Forwarded-For first
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		ips := strings.Split(xff, ",")
-		if len(ips) > 0 {
-			ip := strings.TrimSpace(ips[0])
-			if isValidIP(ip) {
-				return ip
-			}
-		}
-	}
-
-	// Try X-Real-IP
-	if xri := r.Header.Get("X-Real-IP"); xri != "" && isValidIP(xri) {
-		return xri
-	}
-
-	// Fall back to RemoteAddr
-	if r.RemoteAddr != "" {
-		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		if isValidIP(ip) {
-			return ip
-		}
-	}
-
-	return r.GetClientIp()
-}
 
 // extractMetadata extracts additional metadata from the request
 func extractMetadata(r *ghttp.Request) map[string]string {
@@ -187,10 +158,6 @@ func extractFromGMap(data g.Map) *RequestContext {
 	return reqCtx
 }
 
-// isValidIP checks if the given string is a valid IP address
-func isValidIP(ip string) bool {
-	return net.ParseIP(ip) != nil
-}
 
 // ToJSON converts RequestContext to JSON string
 func (rc *RequestContext) ToJSON() string {

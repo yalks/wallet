@@ -33,6 +33,8 @@ type FinancialOperationRequest struct {
 	BusinessID    string            `json:"business_id"`
 	Description   string            `json:"description"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
+	FeeAmount     decimal.Decimal   `json:"fee_amount,omitempty"`   // Fee amount (trusted from request)
+	FeeType       string            `json:"fee_type,omitempty"`     // Fee type (fixed, percentage)
 }
 
 // FinancialOperationResult 财务操作结果
@@ -58,7 +60,6 @@ type operationLogic struct {
 	tokenLogic    ITokenLogic
 	balanceLogic  IBalanceLogic
 	context       *SharedLogicContext
-	feeCalculator *FeeCalculator
 }
 
 // NewOperationLogic 创建操作业务逻辑实例
@@ -68,7 +69,6 @@ func NewOperationLogic() IOperationLogic {
 		tokenLogic:    NewTokenLogic(),
 		balanceLogic:  NewBalanceLogic(),
 		context:       GetSharedContext(),
-		feeCalculator: NewFeeCalculator(),
 	}
 }
 
@@ -428,9 +428,9 @@ func (l *operationLogic) createTransactionRecord(ctx context.Context, tx gdb.TX,
 		RequestTimestamp: gtime.Now(),
 		ProcessedAt:      gtime.Now(),
 		
-		// Calculate fee based on operation type
-		FeeAmount: l.calculateFee(req.OperationType, req.Amount),
-		FeeType:   l.getFeeType(req.OperationType),
+		// Use fee from request parameters (trusted from upstream)
+		FeeAmount: req.FeeAmount,
+		FeeType:   req.FeeType,
 		
 		// Exchange rate (set to 1 if no conversion)
 		ExchangeRate: decimal.NewFromInt(1),
@@ -651,17 +651,6 @@ func (l *operationLogic) getDirection(operationType OperationType) string {
 	}
 }
 
-// calculateFee 计算手续费 (暂时返回0，因为OperationType不直接对应FundType)
-func (l *operationLogic) calculateFee(operationType OperationType, amount decimal.Decimal) decimal.Decimal {
-	// TODO: Map OperationType to FundType or add fee calculation logic for operations
-	return decimal.Zero
-}
-
-// getFeeType 获取手续费类型
-func (l *operationLogic) getFeeType(operationType OperationType) string {
-	// TODO: Map OperationType to FundType or add fee type logic for operations
-	return ""
-}
 
 // extractTargetUserId 从元数据中提取目标用户ID
 func (l *operationLogic) extractTargetUserId(metadata map[string]string) uint {
