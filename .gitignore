@@ -63,3 +63,4 @@ config.local.yaml
 config.local.toml
 secrets.yaml
 secrets.toml
+vendor
