@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	sdkTypes "github.com/a19ba14d/ledger-wallet-sdk/pkg/types"
+	// sdkTypes "github.com/a19ba14d/ledger-wallet-sdk/pkg/types" // 暂时注释，不使用远程 SDK
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -113,31 +113,35 @@ func (l *operationLogic) ExecuteInTx(ctx context.Context, tx gdb.TX, req *Financ
 		return nil, gerror.Newf("不支持的操作类型: %s", req.OperationType)
 	}
 
-	// 6. 执行远程钱包操作
-	walletResponse, err := l.executeRemoteWalletOperation(ctx, req, balanceAfter)
+	// 6. 执行远程钱包操作 - 暂时注释，使用本地事务
+	// walletResponse, err := l.executeRemoteWalletOperation(ctx, req, balanceAfter)
+	// if err != nil {
+	// 	return nil, gerror.Wrap(err, "执行远程钱包操作失败")
+	// }
+	var walletResponse any = nil // 暂时设为nil
+
+	// 7. 更新本地余额 - 提前到远程操作位置，确保事务原子性
+	err = l.balanceLogic.UpdateLocalBalance(ctx, tx, req.UserID, req.TokenSymbol, balanceAfter, decimal.Zero)
 	if err != nil {
-		return nil, gerror.Wrap(err, "执行远程钱包操作失败")
+		return nil, gerror.Wrap(err, "更新本地余额失败")
 	}
 
-	// 7. 创建交易记录
+	// 8. 创建交易记录
 	transactionID, err := l.createTransactionRecord(ctx, tx, req, balanceBefore, balanceAfter)
 	if err != nil {
 		return nil, gerror.Wrap(err, "创建交易记录失败")
 	}
 
-	// 8. 更新本地余额
-	err = l.balanceLogic.UpdateLocalBalance(ctx, tx, req.UserID, req.TokenSymbol, balanceAfter, decimal.Zero)
-	if err != nil {
-		g.Log().Errorf(ctx, "更新本地余额失败: %v", err)
-
-		// 尝试回滚远程钱包操作
-		rollbackErr := l.rollbackRemoteWalletOperation(ctx, req, balanceBefore, walletResponse)
-		if rollbackErr != nil {
-			g.Log().Errorf(ctx, "回滚远程钱包操作失败: %v", rollbackErr)
-		}
-
-		return nil, gerror.Wrap(err, "更新本地余额失败，操作已回滚")
-	}
+	// 回滚逻辑暂时注释，因为使用本地事务
+	// if err != nil {
+	// 	g.Log().Errorf(ctx, "更新本地余额失败: %v", err)
+	// 	// 尝试回滚远程钱包操作
+	// 	rollbackErr := l.rollbackRemoteWalletOperation(ctx, req, balanceBefore, walletResponse)
+	// 	if rollbackErr != nil {
+	// 		g.Log().Errorf(ctx, "回滚远程钱包操作失败: %v", rollbackErr)
+	// 	}
+	// 	return nil, gerror.Wrap(err, "更新本地余额失败，操作已回滚")
+	// }
 
 	result := &FinancialOperationResult{
 		TransactionID:  transactionID,
@@ -219,7 +223,8 @@ func (l *operationLogic) validateRequest(req *FinancialOperationRequest) error {
 	return nil
 }
 
-// executeRemoteWalletOperation 执行远程钱包操作
+// executeRemoteWalletOperation 执行远程钱包操作 - 暂时注释，使用本地事务
+/*
 func (l *operationLogic) executeRemoteWalletOperation(ctx context.Context, req *FinancialOperationRequest, newBalance decimal.Decimal) (any, error) {
 	walletSDK := l.context.GetWalletSDK()
 	if walletSDK == nil {
@@ -267,8 +272,10 @@ func (l *operationLogic) executeRemoteWalletOperation(ctx context.Context, req *
 		return nil, gerror.Newf("不支持的远程操作类型: %s", req.OperationType)
 	}
 }
+*/
 
-// executeRemoteWalletCreditOperation 执行远程钱包充值操作
+// executeRemoteWalletCreditOperation 执行远程钱包充值操作 - 暂时注释，使用本地事务
+/*
 func (l *operationLogic) executeRemoteWalletCreditOperation(ctx context.Context, walletID string, req *FinancialOperationRequest, rawAmount, rawNewBalance decimal.Decimal) (any, error) {
 	// 增加资金 - 调用SDK余额更新方法
 	g.Log().Infof(ctx, "执行SDK充值操作: WalletID=%s, Symbol=%s, Amount=%s, NewBalance=%s, BusinessID=%s",
@@ -310,8 +317,10 @@ func (l *operationLogic) executeRemoteWalletCreditOperation(ctx context.Context,
 
 	return response, nil
 }
+*/
 
-// executeRemoteWalletDebitOperation 执行远程钱包扣款操作
+// executeRemoteWalletDebitOperation 执行远程钱包扣款操作 - 暂时注释，使用本地事务
+/*
 func (l *operationLogic) executeRemoteWalletDebitOperation(ctx context.Context, walletID string, req *FinancialOperationRequest, rawAmount, rawNewBalance decimal.Decimal) (any, error) {
 
 	walletSDK := l.context.GetWalletSDK()
@@ -349,8 +358,10 @@ func (l *operationLogic) executeRemoteWalletDebitOperation(ctx context.Context, 
 
 	return response, nil
 }
+*/
 
-// rollbackRemoteWalletOperation 回滚远程钱包操作
+// rollbackRemoteWalletOperation 回滚远程钱包操作 - 暂时注释，使用本地事务
+/*
 func (l *operationLogic) rollbackRemoteWalletOperation(ctx context.Context, req *FinancialOperationRequest, originalBalance decimal.Decimal, _ any) error {
 	walletSDK := l.context.GetWalletSDK()
 	if walletSDK == nil {
@@ -389,6 +400,7 @@ func (l *operationLogic) rollbackRemoteWalletOperation(ctx context.Context, req 
 
 	return nil
 }
+*/
 
 // createTransactionRecord 创建交易记录
 func (l *operationLogic) createTransactionRecord(ctx context.Context, tx gdb.TX, req *FinancialOperationRequest, balanceBefore, balanceAfter decimal.Decimal) (int64, error) {
@@ -452,34 +464,31 @@ func (l *operationLogic) createTransactionRecord(ctx context.Context, tx gdb.TX,
 func (l *operationLogic) ensureWalletExists(ctx context.Context, user *entity.Users, tokenSymbol string) error {
 	g.Log().Infof(ctx, "开始检测用户钱包: UserID=%d, Symbol=%s", user.Id, tokenSymbol)
 
-	// 1. 检查用户是否有主钱包ID
+	// 1. 检查用户是否有主钱包ID - 暂时跳过远程钱包创建
 	if user.MainWalletId == "" {
-		g.Log().Infof(ctx, "用户没有主钱包ID，需要创建远程钱包: UserID=%d", user.Id)
+		g.Log().Infof(ctx, "用户没有主钱包ID，暂时使用本地钱包: UserID=%d", user.Id)
 
-		// 创建远程钱包
-		mainWalletID, err := l.createRemoteWallet(ctx, user)
-		if err != nil {
-			return gerror.Wrap(err, "创建远程钱包失败")
-		}
+		// 暂时生成一个本地钱包ID
+		mainWalletID := fmt.Sprintf("LOCAL_WALLET_%d", user.Id)
 
 		// 更新用户记录中的主钱包ID
-		err = l.updateUserMainWalletID(ctx, uint64(user.Id), mainWalletID)
+		err := l.updateUserMainWalletID(ctx, uint64(user.Id), mainWalletID)
 		if err != nil {
 			return gerror.Wrap(err, "更新用户主钱包ID失败")
 		}
 
 		user.MainWalletId = mainWalletID
-		g.Log().Infof(ctx, "成功创建远程钱包: UserID=%d, WalletID=%s", user.Id, mainWalletID)
+		g.Log().Infof(ctx, "成功创建本地钱包ID: UserID=%d, WalletID=%s", user.Id, mainWalletID)
 	}
 
-	// 2. 检查远程钱包是否真实存在
-	err := l.verifyRemoteWalletExists(ctx, user.MainWalletId)
-	if err != nil {
-		return gerror.Wrapf(err, "远程钱包验证失败: WalletID=%s", user.MainWalletId)
-	}
+	// 2. 跳过远程钱包验证
+	// err := l.verifyRemoteWalletExists(ctx, user.MainWalletId)
+	// if err != nil {
+	// 	return gerror.Wrapf(err, "远程钱包验证失败: WalletID=%s", user.MainWalletId)
+	// }
 
 	// 3. 检查本地钱包记录是否存在
-	err = l.ensureLocalWalletRecord(ctx, uint64(user.Id), tokenSymbol)
+	err := l.ensureLocalWalletRecord(ctx, uint64(user.Id), tokenSymbol)
 	if err != nil {
 		return gerror.Wrap(err, "确保本地钱包记录失败")
 	}
@@ -488,7 +497,8 @@ func (l *operationLogic) ensureWalletExists(ctx context.Context, user *entity.Us
 	return nil
 }
 
-// createRemoteWallet 创建远程钱包
+// createRemoteWallet 创建远程钱包 - 暂时注释，使用本地事务
+/*
 func (l *operationLogic) createRemoteWallet(ctx context.Context, user *entity.Users) (string, error) {
 	walletSDK := l.context.GetWalletSDK()
 	if walletSDK == nil {
@@ -519,6 +529,7 @@ func (l *operationLogic) createRemoteWallet(ctx context.Context, user *entity.Us
 	g.Log().Infof(ctx, "远程钱包创建成功: UserID=%d, WalletID=%s", user.Id, response.Id)
 	return response.Id, nil
 }
+*/
 
 // updateUserMainWalletID 更新用户的主钱包ID
 func (l *operationLogic) updateUserMainWalletID(ctx context.Context, userID uint64, mainWalletID string) error {
@@ -536,7 +547,8 @@ func (l *operationLogic) updateUserMainWalletID(ctx context.Context, userID uint
 	return nil
 }
 
-// verifyRemoteWalletExists 验证远程钱包是否存在
+// verifyRemoteWalletExists 验证远程钱包是否存在 - 暂时跳过
+/*
 func (l *operationLogic) verifyRemoteWalletExists(ctx context.Context, walletID string) error {
 	walletSDK := l.context.GetWalletSDK()
 	if walletSDK == nil {
@@ -558,6 +570,7 @@ func (l *operationLogic) verifyRemoteWalletExists(ctx context.Context, walletID 
 	g.Log().Debugf(ctx, "远程钱包验证成功: WalletID=%s", walletID)
 	return nil
 }
+*/
 
 // ensureLocalWalletRecord 确保本地钱包记录存在
 func (l *operationLogic) ensureLocalWalletRecord(ctx context.Context, userID uint64, tokenSymbol string) error {

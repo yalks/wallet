@@ -41,7 +41,7 @@ func NewBalanceLogic() IBalanceLogic {
 	}
 }
 
-// GetBalance 获取用户余额（优先本地，本地没有则查询远程并同步）
+// GetBalance 获取用户余额（优先本地，本地没有则创建）- 暂时不查询远程
 func (l *balanceLogic) GetBalance(ctx context.Context, userID uint64, tokenSymbol string) (availableBalance, frozenBalance decimal.Decimal, err error) {
 	// 1. 首先尝试从本地获取
 	availableBalance, frozenBalance, err = l.GetLocalBalance(ctx, userID, tokenSymbol)
@@ -49,22 +49,23 @@ func (l *balanceLogic) GetBalance(ctx context.Context, userID uint64, tokenSymbo
 		return availableBalance, frozenBalance, nil
 	}
 
-	g.Log().Infof(ctx, "本地钱包记录不存在，从远程查询: UserID=%d, Symbol=%s", userID, tokenSymbol)
+	g.Log().Infof(ctx, "本地钱包记录不存在，创建初始余额为0的记录: UserID=%d, Symbol=%s", userID, tokenSymbol)
 
-	// 2. 如果本地没有记录，从远程查询
-	remoteBalance, err := l.GetRemoteBalance(ctx, userID, tokenSymbol)
-	if err != nil {
-		return decimal.Zero, decimal.Zero, err
-	}
+	// 2. 如果本地没有记录，创建一个初始余额为0的记录
+	// 暂时注释远程查询逻辑
+	// remoteBalance, err := l.GetRemoteBalance(ctx, userID, tokenSymbol)
+	// if err != nil {
+	// 	return decimal.Zero, decimal.Zero, err
+	// }
 
-	// 3. 创建本地钱包记录以保持数据一致性
-	err = l.createLocalWalletRecord(ctx, userID, tokenSymbol, remoteBalance)
+	// 3. 创建本地钱包记录，初始余额为0
+	err = l.createLocalWalletRecord(ctx, userID, tokenSymbol, decimal.Zero)
 	if err != nil {
 		g.Log().Warningf(ctx, "创建本地钱包记录失败: UserID=%d, Symbol=%s, Error=%v", userID, tokenSymbol, err)
 		// 不阻止操作，但记录警告
 	}
 
-	return remoteBalance, decimal.Zero, nil
+	return decimal.Zero, decimal.Zero, nil
 }
 
 // GetLocalBalance 获取本地钱包余额
@@ -91,8 +92,13 @@ func (l *balanceLogic) GetLocalBalance(ctx context.Context, userID uint64, token
 	return availableBalance, frozenBalance, nil
 }
 
-// GetRemoteBalance 获取远程钱包余额
+// GetRemoteBalance 获取远程钱包余额 - 暂时返回错误，使用本地事务
 func (l *balanceLogic) GetRemoteBalance(ctx context.Context, userID uint64, tokenSymbol string) (decimal.Decimal, error) {
+	// 暂时不支持远程查询，直接返回错误
+	return decimal.Zero, gerror.New("远程钱包查询暂时禁用，请使用本地余额")
+	
+	// 原实现已注释，待后续恢复远程钱包功能时启用
+	/*
 	walletSDK := l.context.GetWalletSDK()
 	if walletSDK == nil {
 		return decimal.Zero, gerror.New("钱包SDK未初始化")
@@ -127,6 +133,7 @@ func (l *balanceLogic) GetRemoteBalance(ctx context.Context, userID uint64, toke
 	}
 
 	return decimal.Zero, nil
+	*/
 }
 
 // UpdateLocalBalance 更新本地钱包余额
