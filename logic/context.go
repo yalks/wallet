@@ -1,12 +1,12 @@
 package logic
 
 import (
-	"context"
+	// "context"
 	"sync"
 
 	ledgerwalletsdk "github.com/a19ba14d/ledger-wallet-sdk"
-	"github.com/a19ba14d/ledger-wallet-sdk/pkg/sdkconfig"
-	"github.com/gogf/gf/v2/frame/g"
+	// "github.com/a19ba14d/ledger-wallet-sdk/pkg/sdkconfig"
+	// "github.com/gogf/gf/v2/frame/g"
 
 	"github.com/yalks/wallet/dao"
 )
@@ -49,12 +49,12 @@ func GetSharedContext() *SharedLogicContext {
 
 // initWalletSDK 初始化钱包SDK
 func (c *SharedLogicContext) initWalletSDK() {
-	baseURL := g.Cfg().MustGet(context.Background(), "walletsApi.baseUrl").String()
-	if client, err := ledgerwalletsdk.New(sdkconfig.WithBaseURL(baseURL)); err != nil {
-		g.Log().Errorf(context.Background(), "初始化钱包SDK失败: %v", err)
-	} else {
-		c.walletSDK = client
-	}
+	// baseURL := g.Cfg().MustGet(context.Background(), "walletsApi.baseUrl").String()
+	// if client, err := ledgerwalletsdk.New(sdkconfig.WithBaseURL(baseURL)); err != nil {
+	// 	g.Log().Errorf(context.Background(), "初始化钱包SDK失败: %v", err)
+	// } else {
+	// 	c.walletSDK = client
+	// }
 }
 
 // GetUserDAO 获取用户DAO
