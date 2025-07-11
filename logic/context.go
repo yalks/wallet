@@ -4,7 +4,7 @@ import (
 	// "context"
 	"sync"
 
-	ledgerwalletsdk "github.com/a19ba14d/ledger-wallet-sdk"
+	// ledgerwalletsdk "github.com/a19ba14d/ledger-wallet-sdk" // 暂时禁用远程钱包SDK
 	// "github.com/a19ba14d/ledger-wallet-sdk/pkg/sdkconfig"
 	// "github.com/gogf/gf/v2/frame/g"
 
@@ -19,8 +19,8 @@ type SharedLogicContext struct {
 	walletDAO      dao.IWalletDAO
 	transactionDAO dao.ITransactionDAO
 
-	// 钱包SDK
-	walletSDK ledgerwalletsdk.IWallet
+	// 钱包SDK - 暂时禁用远程钱包功能
+	// walletSDK ledgerwalletsdk.IWallet
 
 	// 初始化标志
 	initialized bool
@@ -41,21 +41,21 @@ func GetSharedContext() *SharedLogicContext {
 			walletDAO:      dao.NewWalletDAO(),
 			transactionDAO: dao.NewTransactionDAO(),
 		}
-		sharedContext.initWalletSDK()
+		// sharedContext.initWalletSDK() // 暂时禁用远程钱包SDK初始化
 		sharedContext.initialized = true
 	})
 	return sharedContext
 }
 
-// initWalletSDK 初始化钱包SDK
-func (c *SharedLogicContext) initWalletSDK() {
-	// baseURL := g.Cfg().MustGet(context.Background(), "walletsApi.baseUrl").String()
-	// if client, err := ledgerwalletsdk.New(sdkconfig.WithBaseURL(baseURL)); err != nil {
-	// 	g.Log().Errorf(context.Background(), "初始化钱包SDK失败: %v", err)
-	// } else {
-	// 	c.walletSDK = client
-	// }
-}
+// initWalletSDK 初始化钱包SDK - 暂时禁用
+// func (c *SharedLogicContext) initWalletSDK() {
+// 	// baseURL := g.Cfg().MustGet(context.Background(), "walletsApi.baseUrl").String()
+// 	// if client, err := ledgerwalletsdk.New(sdkconfig.WithBaseURL(baseURL)); err != nil {
+// 	// 	g.Log().Errorf(context.Background(), "初始化钱包SDK失败: %v", err)
+// 	// } else {
+// 	// 	c.walletSDK = client
+// 	// }
+// }
 
 // GetUserDAO 获取用户DAO
 func (c *SharedLogicContext) GetUserDAO() dao.IUserDAO {
@@ -85,11 +85,12 @@ func (c *SharedLogicContext) GetTransactionDAO() dao.ITransactionDAO {
 	return c.transactionDAO
 }
 
-// GetWalletSDK 获取钱包SDK
-func (c *SharedLogicContext) GetWalletSDK() ledgerwalletsdk.IWallet {
+// GetWalletSDK 获取钱包SDK - 暂时禁用，返回nil
+func (c *SharedLogicContext) GetWalletSDK() any { // ledgerwalletsdk.IWallet
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.walletSDK
+	return nil // 暂时禁用远程钱包SDK
+	// return c.walletSDK
 }
 
 // IsInitialized 检查是否已初始化
